@@ -66,3 +66,57 @@
 (print-rat (make-rat -2 6))
 (print-rat (make-rat 2 -6))
 (print-rat (make-rat -2 -6))
+
+; excercise 2.2
+
+(define (make-segment start end)
+  (cons start end))
+
+(define (start-segment s)
+  (car s))
+
+(define (end-segment s)
+  (cdr s))
+
+(define (make-point x y)
+  (cons x y))
+
+(define (x-point p)
+  (car p))
+
+(define (y-point p)
+  (cdr p))
+
+(define (print-segment s)
+  (newline)
+  (display "[")
+  (print-point (start-segment s))
+  (display ", ")
+  (print-point (end-segment s))
+  (display "]"))
+
+(define (print-point p)
+  (newline)
+  (display "(")
+  (display (x-point p))
+  (display ", ")
+  (display (y-point p))
+  (display ")"))
+
+(define sample-segment
+  (make-segment (make-point 1.5 3.6)
+                (make-point -0.9 9.9)))
+
+(print-segment sample-segment)
+
+(define (mid-point-segment s)
+  (make-point (average (x-point (start-segment s))
+                       (x-point (end-segment s)))
+              (average (y-point (start-segment s))
+                       (y-point (end-segment s)))))
+
+(define (average x y)
+  (/ (+ x y)
+     2))
+
+(print-point (mid-point-segment sample-segment))
