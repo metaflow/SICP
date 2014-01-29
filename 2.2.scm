@@ -422,6 +422,3 @@
 ; simply: there are two sets of subsets in result - with and without element a
 
 (subsets (list 1 2 3))
-
-
-;
