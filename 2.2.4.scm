@@ -19,6 +19,17 @@
           (beside (below painter top-left)
                   (below bottom-right corner))))))
 
+(define (square-limit painter n)
+  (let ((quarter (corner-split painter n)))
+    (let ((half (beside (flip-horiz quarter) quarter)))
+      (below (flip-vert half) half))))
+
+(define (square-of-four tl tr bl br)
+  (lambda (painter)
+    (let ((top (beside (tl painter) (tr painter)))
+          (bottom (beside (bl painter) (br painter))))
+      (below bottom top))))
+
 (define (up-split painter n)
   (if (= n 0)
       painter
@@ -27,14 +38,16 @@
         (below painter (beside top top)))))
 
 (define (split f s)
-  (define (step painter n)
-    (if (= 0 n)
-      painter
-      (f (s (step painter (- n 1))))))
-  (lambda (painter n) (step painter n)))
+  (lambda (painter n)
+    (define (step i)
+      (if (= i 0)
+        painter
+        (let ((part (step (- i 1))))
+             (f painter (s part part)))))
+    (step n)))
 
-;(define right-split (split beside below))
-;(define up-split (split beside below))
+
+; I had moved target definitions under 'beside' and 'below'
 
 ; --- Frames ---
 
@@ -75,7 +88,7 @@
     (- (xcord-vect v))
     (- (ycord-vect v))))
 
-(define (sub-vec v u)
+(define (sub-vect v u)
   (add-vect v (negate-vect u)))
 
 
@@ -86,7 +99,7 @@
 
 (scale-vect 0.5 va)
 (add-vect va vb)
-(sub-vec va vb)
+(sub-vect va vb)
 
 ; excercise 2.47
 
@@ -171,23 +184,25 @@
                 (make-vect x-end y-end)))
 
 ; for test purposes
+; check http://jsfiddle.net/rHuEq/1 where you can paste output of
+; multiple 'display-segment' and see the picture! (use ort-frame as a frame)
 
 (define (display-vector vector)
-  (display "(")
+  (display "{x: ")
   (display (xcord-vect vector))
-  (display ", ")
+  (display ", y:")
   (display (ycord-vect vector))
-  (display ")"))
+  (display "}"))
 
 (display-vector (make-vect 0.5 0.6))
 
 (define (display-segment segment)
   (newline)
-  (display "{")
+  (display "{start: ")
   (display-vector (start-segment segment))
-  (display "; ")
+  (display ", end: ")
   (display-vector (end-segment segment))
-  (display "}"))
+  (display "},"))
 
 (display-segment (make-segment-coord 1 2 3 4))
 
@@ -275,6 +290,7 @@
 ;d.
 
 ; to ease our lives let's define painter combiner
+; so all painters in the list share same frame
 
 (define (combine-painters painters)
   (lambda (frame)
@@ -327,4 +343,171 @@
 
 (wave magnifying-frame)
 
+; Transforming and combining painters
 
+(define (transform-painter painter origin corner1 corner2)
+  (lambda (frame)
+    (let ((m (frame-coord-map frame)))
+      (let ((new-origin (m origin)))
+        (painter
+          (make-frame
+            (m origin)
+            (sub-vect (m corner1)
+                      new-origin)
+            (sub-vect (m corner2)
+                      new-origin)))))))
+
+(define (flip-vert painter)
+  (transform-painter
+    painter
+    (make-vect 0 1)
+    (make-vect 1 1)
+    (make-vect 0 0)))
+
+(define test-painter
+  (segments->painter (list (make-segment (make-vect 0 0.5)
+                                         (make-vect 0.5 1)))))
+
+(define ort-frame
+  (make-frame (make-vect 0 0)
+              (make-vect 1 0)
+              (make-vect 0 1)))
+
+(test-painter ort-frame)
+
+((flip-vert test-painter) ort-frame)
+
+(define (shrink-to-upper-right painter)
+  (transform-painter painter
+    (make-vect 0.5 0.5)
+    (make-vect 1 0.5)
+    (make-vect 0.5 1)))
+
+((shrink-to-upper-right test-painter) ort-frame)
+
+(define (rotate90 painter)
+  (transform-painter painter
+    (make-vect 1 0)
+    (make-vect 1 1)
+    (make-vect 0 0)))
+
+(define (beside painter1 painter2)
+  (let ((paint-left
+          (transform-painter
+            painter1
+            (make-vect 0 0)
+            (make-vect 0.5 0)
+            (make-vect 0 1)))
+        (paint-right
+          (transform-painter
+            painter2
+            (make-vect 0.5 0)
+            (make-vect 1 0)
+            (make-vect 0.5 1))))
+    (lambda (frame)
+      (paint-left frame)
+      (paint-right frame))))
+
+((beside test-painter diamond->painter) ort-frame)
+
+; excercise 2.50
+
+(define (flip-horiz painter)
+  (transform-painter painter
+    (make-vect 1 0)
+    (make-vect 0 0)
+    (make-vect 1 1)))
+
+((flip-horiz test-painter) ort-frame)
+
+(define (rotate180 painter)
+  (rotate90 (rotate90 painter)))
+
+((rotate180 test-painter) ort-frame)
+
+(define (rotate270 painter)
+  (rotate90 (rotate180 painter)))
+
+((rotate270 test-painter) ort-frame)
+
+; excercise 2.51
+; analogous to beside
+
+(define (below painter1 painter2)
+  (let ((paint-bottom
+          (transform-painter
+            painter1
+            (make-vect 0 0)
+            (make-vect 1 0)
+            (make-vect 0 0.5)))
+        (paint-top
+          (transform-painter
+            painter2
+            (make-vect 0 0.5)
+            (make-vect 1 0.5)
+            (make-vect 0 1))))
+    (lambda (frame)
+      (paint-bottom frame)
+      (paint-top frame))))
+
+((below test-painter diamond->painter) ort-frame)
+
+; as beside with rotations
+
+(define (below painter1 painter2)
+  (rotate90 (beside (rotate270 painter1)
+                    (rotate270 painter2))))
+
+((below test-painter diamond->painter) ort-frame)
+
+; excercise 2.52
+; a.
+; I will not copy all 'wave' but rather combine existing one with new element
+
+(define old-wave wave)
+(define wave
+  (combine-painters
+    (list
+      old-wave
+      (polygonal->painter
+        (list (make-vect 0.4 0.7)
+              (make-vect 0.5 0.6)
+              (make-vect 0.6 0.7))))))
+
+(wave ort-frame)
+
+; b. t
+
+(define (corner-split painter n)
+  (if (= n 0)
+      painter
+      (let ((up (up-split painter (- n 1)))
+            (right (right-split painter (- n 1)))
+            (corner (corner-split painter (- n 1))))
+          (beside (below painter up)
+                  (below right corner)))))
+
+; from 2.44
+
+(define right-split (split beside below))
+(define up-split (split below beside))
+
+((right-split diamond->painter 3) ort-frame)
+((up-split diamond->painter 3) ort-frame)
+
+; c. original square-limit:
+
+; let's indeed make big mr. Rogers to be at corner of result square
+
+(define (square-limit painter n)
+  (let ((quarter (corner-split painter n)))
+    ((square-of-four
+      rotate270
+      rotate180
+      identity
+      rotate90) quarter)))
+
+(define (identity painter)
+  painter)
+
+((square-limit wave 2) ort-frame)
