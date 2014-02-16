@@ -119,8 +119,129 @@
 (union-set '(1 2 4 9) '(1 4 6))
 
 ; this union-set has time complexity of O(n)
-; because each time we decrease size of at least one set thus maximum number
-; of recursion steps is sum of sizes of sets that is O(m + n) <= O(2n) = O(n)
-; having n > m
+; each time we decrease size of at least one element thus maximum number
+; of recursion steps is sum of sizes of sets that is O(n)
 
-; TODO force bracket highlighter
+; --- Sets as binary trees ---
+
+(define (entry tree)
+  (car tree))
+
+(define (left-branch tree)
+  (cadr tree))
+
+(define (right-branch tree)
+  (caddr tree))
+
+(define (make-tree entry left right)
+  (list entry left right))
+
+(define (element-of-set? x set)
+  (cond ((null? set) false)
+        ((= x (entry set)) true)
+        ((< x (entry set))
+          (element-of-set? x (left-branch set)))
+        (else (element-of-set? x (right-branch set)))))
+
+(define (adjoin-set x set)
+  (cond ((null? set) (make-tree x '() '()))
+        ((= x (entry set)) set)
+        ((< x (entry set))
+          (make-tree (entry set)
+                     (adjoin-set x
+                                (left-branch set))
+                     (right-branch set)))
+        (else
+          (make-tree (entry set)
+                     (left-branch set)
+                     (adjoin-set x
+                                (right-branch set))))))
+
+(adjoin-set 1 (make-tree 4
+                        (make-tree 2 '() '())
+                        (make-tree 9 '() '())))
+
+; excercise 2.63
+
+(define (tree->list-1 tree)
+  (if (null? tree)
+      '()
+      (append (tree->list-1 (left-branch tree))
+              (cons (entry tree)
+                    (tree->list-1 (right-branch tree))))))
+
+(define (tree->list-2 tree)
+  (define (copy-to-list tree result-list)
+    (if (null? tree)
+        result-list
+        (copy-to-list (left-branch tree)
+          (cons (entry tree)
+                (copy-to-list (right-branch tree)
+                              result-list)))))
+  (copy-to-list tree '()))
+
+; a. both procedures define in-order traversal - you get sorted list as result
+; for example
+
+(define (make-leaf v)
+  (make-tree v '() '()))
+
+(define tree-216-a
+  (make-tree 7
+    (make-tree 3
+      (make-leaf 1)
+      (make-leaf 5))
+    (make-tree 9
+      '()
+      (make-leaf 11))))
+
+(tree->list-1 tree-216-a)
+(tree->list-2 tree-216-a)
+
+; b. order of grown is the same - O(n) - every iteration you extract yet
+; another element from tree
+
+; excercise 2.64
+
+(define (list->tree elements)
+  (car (partial-tree elements (length elements))))
+
+(define (partial-tree elts n)
+  (if (= n 0)
+      (cons '() elts)
+      (let ((left-size (quotient (- n 1) 2)))
+        (let ((left-result (partial-tree elts left-size)))
+          (let ((left-tree (car left-result))
+                (non-left-elts (cdr left-result))
+                (right-size (- n (+ left-size 1))))
+            (let ((this-entry (car non-left-elts))
+                  (right-result (partial-tree (cdr non-left-elts)
+                                              right-size)))
+              (let ((right-tree (car right-result))
+                    (remaining-elts (cdr right-result)))
+                (cons (make-tree this-entry left-tree right-tree)
+                      remaining-elts))))))))
+
+; partial tree gets an list with N and returns pair
+; (tree from first N elements; remaining elements)
+; to construct a subtree from first N elements we first get a
+; tree from from (N - 1)/2 elements plus remaining ones (this will be left branch)
+; first element of remaining ones (middle of interval 1..N)
+; tree from all other elements (will be right branch)
+
+; in short we recoursively get middle of list as root of tree and construct
+; branches from elements to the left and to the right
+; Result tree is balanced by definition - size of left and right branch
+; differ no more then 1
+
+
+
+
+(list->tree (list 1 3 5 7 9 11))
+; (5 (1 () (3 () ())) (9 (7 () ()) (11 () ())))
+;    5
+;   / \
+;  1   9
+; /   / \
+;3   7  11
+
