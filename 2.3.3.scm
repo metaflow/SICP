@@ -224,18 +224,16 @@
 
 ; partial tree gets an list with N and returns pair
 ; (tree from first N elements; remaining elements)
+
 ; to construct a subtree from first N elements we first get a
 ; tree from from (N - 1)/2 elements plus remaining ones (this will be left branch)
 ; first element of remaining ones (middle of interval 1..N)
 ; tree from all other elements (will be right branch)
 
 ; in short we recoursively get middle of list as root of tree and construct
-; branches from elements to the left and to the right
+; branches from elements to the left and to the right recoursively
 ; Result tree is balanced by definition - size of left and right branch
 ; differ no more then 1
-
-
-
 
 (list->tree (list 1 3 5 7 9 11))
 ; (5 (1 () (3 () ())) (9 (7 () ()) (11 () ())))
@@ -245,3 +243,190 @@
 ; /   / \
 ;3   7  11
 
+; excercise 2.65
+; we can reuse latest version of union-set of ordered lists as tree->list
+; returns ordered lists
+
+(define (union-list set1 set2)
+  (cond ((null? set1) set2)
+        ((null? set2) set1)
+        (else
+          (let ((x1 (car set1))
+                (x2 (car set2)))
+          (cond ((= x1 x2)
+                  (cons x1 (union-list (cdr set1)
+                                      (cdr set2))))
+                ((< x1 x2)
+                  (cons x1 (union-list (cdr set1)
+                                      set2)))
+                (else (cons x2 (union-list set1 (cdr set2)))))))))
+
+(define (union-set set1 set2)
+  (list->tree (union-list (tree->list-1 set1)
+                          (tree->list-1 set2))))
+
+(union-set (list->tree (list 1 2 3 4 5))
+           (list->tree (list 2 4 6 8)))
+
+(define (intersection-list set1 set2)
+  (if (or (null? set1) (null? set2))
+      '()
+      (let ((x1 (car set1))
+            (x2 (car set2)))
+        (cond ((= x1 x2) (cons x1 (intersection-list (cdr set1) (cdr set2))))
+              ((< x1 x2) (intersection-list (cdr set1) set2))
+              (else (intersection-list set1 (cdr set2)))))))
+
+(define (intersection-set set1 set2)
+  (list->tree (intersection-list (tree->list-1 set1)
+                                 (tree->list-2 set2))))
+
+(intersection-set (list->tree (list 1 2 3 4 5))
+                  (list->tree (list 2 4 6 8)))
+
+; excercise 2.66
+
+(define (lookup given-key set-of-records)
+  (if (null? set-of-records) false
+      (let ((entry-key (key (entry set-of-records))))
+        (cond ((= given-key entry-key)
+                (entry set-of-records))
+              ((> given-key entry-key)
+                (lookup given-key (right-branch set-of-records)))
+              (else
+                (lookup given-key (left-branch set-of-records)))))))
+
+; for example:
+
+(define key-value-tree
+  (make-tree
+    (cons 3 "Tree")
+    (make-tree (cons 1 "One") '() '())
+    (make-tree (cons 4 "Four") '() '())))
+
+
+(define (key entry)
+  (car entry))
+
+; note that we have to rewrite procedures above to use (key entry) as
+; key value instead of entry itself when comparing nodes of the tree
+
+(lookup 4 key-value-tree)
+(lookup -2 key-value-tree)
+
+; Huffman trees
+
+(define (make-leaf symbol weight)
+  (list 'leaf symbol weight))
+
+(define (leaf? object)
+  (eq? (car object) 'leaf))
+
+(define (symbol-leaf x)
+  (cadr x))
+
+(define (weight-leaf x)
+  (caddr x))
+
+(define (make-code-tree left right)
+  (list left
+        right
+        (append (symbols left)
+                (symbols right))
+        (+ (weight left)
+           (weight right))))
+
+(define (left-branch tree)
+  (car tree))
+
+(define (right-branch tree)
+  (cadr tree))
+
+(define (symbols tree)
+  (if (leaf? tree)
+      (list (symbol-leaf tree))
+      (caddr tree)))
+
+(define (weight tree)
+  (if (leaf? tree)
+      (weight-leaf tree)
+      (cadddr tree)))
+
+(define (decode bits tree)
+  (define (decode-1 bits current-branch)
+    (if (null? bits)
+        '()
+        (let ((next-branch
+                (choose-branch (car bits)
+                               current-branch)))
+          (if (leaf? next-branch)
+              (cons (symbol-leaf next-branch)
+                    (decode-1 (cdr bits)
+                              tree))
+              (decode-1 (cdr bits)
+                        next-branch)))))
+  (decode-1 bits tree))
+
+(define (choose-branch bit branch)
+  (cond ((= bit 1) (left-branch branch))
+        ((= bit 0) (right-branch branch))
+        (else (error "bad bit -- CHOOSE_BRANCH" bit))))
+
+(define (adjoin-set x set)
+  (cond ((null? set) (list x))
+        ((< (weight x) (weight (car set))) (cons x set))
+        (else (cons (car set)
+                    (adjoin-set x (cdr set))))))
+
+(define (make-leaf-set pairs)
+  (if (null? pairs)
+      '()
+      (let ((pair (car pairs)))
+        (adjoin-set (make-leaf (car pair)
+                               (cdr pair))
+                    (make-leaf-set (cdr pairs))))))
+
+; excercise 2.67
+
+(define sample-tree
+  (make-code-tree (make-leaf 'A 4)
+                  (make-code-tree
+                   (make-leaf 'B 2)
+                   (make-code-tree (make-leaf 'D 1)
+                                   (make-leaf 'C 1)))))
+
+(define sample-message '(0 1 1 0 0 1 0 1 0 1 1 1 0))
+
+(decode sample-message sample-tree) ; B A D B B A A
+
+; excercise 2.68
+
+(define (encode message tree)
+  (if (null? message)
+      '()
+      (append (encode-symbol (car message)
+                             tree)
+              (encode (cdr message)
+                      tree))))
+
+(define (encode-symbol s tree)
+  (define (element-of-list? x set)
+    (cond ((null? set) false)
+          ((equal? x (car set)) true)
+         (else (element-of-list? x (cdr set)))))
+  (define (encode-on-subtree s subtree)
+    (cond ((leaf? subtree) '())
+          ((element-of-list? s (symbols (left-branch subtree)))
+            (cons 1 (encode-on-subtree s (left-branch subtree))))
+          (else
+            (cons 0 (encode-on-subtree s (right-branch subtree))))))
+  (if (element-of-list? s (symbols tree))
+      (encode-on-subtree s tree)
+      (error "no symbol ENCODE-SYMBOL" s)))
+
+(encode-symbol 'A sample-tree)
+(encode-symbol 'B sample-tree)
+(encode-symbol 'C sample-tree)
+
+(encode '(B A D B B A A) sample-tree) ; not exact sample-message as last zero
+; does not represent any symbol
